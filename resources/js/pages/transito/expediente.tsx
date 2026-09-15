@@ -39,7 +39,9 @@ interface Declaracion {
     id: number;
     estado: string;
     datos: Record<string, any>;
-    advertencias: Advertencia[];
+    // Declaraciones generadas antes de introducir {campo, mensaje} siguen
+    // guardadas como string[] en la base de datos: soportamos ambos formatos.
+    advertencias: (Advertencia | string)[];
     confianza_global: number | null;
     generado_en: string | null;
 }
@@ -418,12 +420,17 @@ function DeclaracionEditor({
                         {declaracion.advertencias.length} advertencia{declaracion.advertencias.length > 1 ? 's' : ''} de la IA
                     </div>
                     <ul className="text-[12px] text-[color:var(--color-wx-ink)] space-y-0.5">
-                        {declaracion.advertencias.map((a, i) => (
-                            <li key={i}>
-                                <span className="font-medium">{etiquetasCampos[a.campo] ?? a.campo}</span>
-                                {a.mensaje && <> — {a.mensaje}</>}
-                            </li>
-                        ))}
+                        {declaracion.advertencias.map((a, i) => {
+                            if (typeof a === 'string') {
+                                return <li key={i}>{a}</li>;
+                            }
+                            return (
+                                <li key={i}>
+                                    <span className="font-medium">{etiquetasCampos[a.campo] ?? a.campo}</span>
+                                    {a.mensaje && <> — {a.mensaje}</>}
+                                </li>
+                            );
+                        })}
                     </ul>
                 </div>
             )}
