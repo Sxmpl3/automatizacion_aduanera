@@ -49,7 +49,12 @@ class DeclaracionBuilder
                 '22.153,00' = 22153.0 · '1.500,50' = 1500.5 · '15.355' (sin coma) suele ser 15355 entero.
                 Nunca conviertas '22.153' a 22.153: eso serían 22 gramos de mercancía, incoherente para tránsito.
 
-                Nunca inventes datos. Si un campo falta en TODOS los documentos, déjalo vacío y añade una advertencia clara.
+                Nunca inventes datos. Si un campo falta en TODOS los documentos, déjalo vacío y añade una advertencia.
+                Cada advertencia es un objeto {campo, mensaje}: 'campo' es la ruta del campo afectado tal como aparece en el
+                esquema 'datos' (ej. 'consignatario.eori', 'partidas.valor_estadistico'), o 'general' si no aplica a un campo
+                concreto. 'mensaje' es una frase breve en español que NO debe repetir la ruta técnica ni el nombre en snake_case
+                del campo — la interfaz ya muestra el nombre legible del campo junto al mensaje, así que ve directo al motivo
+                (ej. campo 'consignatario.eori', mensaje "No aparece en ningún documento del expediente").
                 Estima una confianza global (0-100) según la cobertura y coherencia de los datos.
                 Trabaja en español.
                 SYS,
@@ -90,12 +95,22 @@ class DeclaracionBuilder
 
     protected function schemaDeclaracion(): array
     {
+        $advertencia = [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'properties' => [
+                'campo'   => ['type' => 'string', 'enum' => array_keys(DeclaracionTransitoSchema::etiquetas())],
+                'mensaje' => ['type' => 'string'],
+            ],
+            'required' => ['campo', 'mensaje'],
+        ];
+
         return [
             'type' => 'object',
             'additionalProperties' => false,
             'properties' => [
                 'confianza_global' => ['type' => 'number', 'minimum' => 0, 'maximum' => 100],
-                'advertencias'     => ['type' => 'array', 'items' => ['type' => 'string']],
+                'advertencias'     => ['type' => 'array', 'items' => $advertencia],
                 'datos'            => DeclaracionTransitoSchema::datos(),
             ],
             'required' => ['confianza_global', 'advertencias', 'datos'],

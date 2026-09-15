@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Expediente;
 use App\Models\HistorialEvento;
+use App\Services\Schema\DeclaracionTransitoSchema;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -132,6 +133,9 @@ class ExpedienteController extends Controller
                     'cuando'  => $h->created_at?->format('d/m/Y H:i'),
                 ];
             }),
+            // Glosario "ruta de campo → nombre a mostrar": para que las advertencias
+            // de la IA (y cualquier otro uso futuro) nunca expongan claves técnicas.
+            'etiquetas_campos' => DeclaracionTransitoSchema::etiquetas(),
         ]);
     }
 

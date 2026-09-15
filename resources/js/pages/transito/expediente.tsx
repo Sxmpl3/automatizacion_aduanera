@@ -30,11 +30,16 @@ interface Documento {
     datos_extraidos: Record<string, unknown> | null;
 }
 
+interface Advertencia {
+    campo: string;
+    mensaje: string;
+}
+
 interface Declaracion {
     id: number;
     estado: string;
     datos: Record<string, any>;
-    advertencias: string[];
+    advertencias: Advertencia[];
     confianza_global: number | null;
     generado_en: string | null;
 }
@@ -48,6 +53,7 @@ interface Props {
     documentos: Documento[];
     declaracion: Declaracion | null;
     historial: Historial[];
+    etiquetas_campos: Record<string, string>;
 }
 
 const estadoLabel: Record<EstadoExp, string> = {
@@ -58,7 +64,7 @@ const estadoTone: Record<EstadoExp, string> = {
     borrador: 'muted', analizando: 'warn', revision: 'signal', validado: 'ok',
 };
 
-export default function ExpedienteView({ expediente, documentos, declaracion, historial }: Props) {
+export default function ExpedienteView({ expediente, documentos, declaracion, historial, etiquetas_campos }: Props) {
     const [tab, setTab] = useState<'declaracion' | 'documentos' | 'historial'>(
         declaracion ? 'declaracion' : 'documentos'
     );
@@ -188,6 +194,7 @@ export default function ExpedienteView({ expediente, documentos, declaracion, hi
                             expedienteId={expediente.id}
                             declaracion={declaracion}
                             estadoExpediente={expediente.estado}
+                            etiquetasCampos={etiquetas_campos}
                         />
                     )}
                     {tab === 'declaracion' && !declaracion && (
@@ -357,11 +364,12 @@ function DocumentosPanel({
 /* -------------------------------------------------------------------- */
 
 function DeclaracionEditor({
-    expedienteId, declaracion, estadoExpediente,
+    expedienteId, declaracion, estadoExpediente, etiquetasCampos,
 }: {
     expedienteId: number;
     declaracion: Declaracion;
     estadoExpediente: EstadoExp;
+    etiquetasCampos: Record<string, string>;
 }) {
     const [datos, setDatos] = useState<Record<string, any>>(declaracion.datos ?? {});
     const [guardando, setGuardando] = useState(false);
@@ -410,7 +418,12 @@ function DeclaracionEditor({
                         {declaracion.advertencias.length} advertencia{declaracion.advertencias.length > 1 ? 's' : ''} de la IA
                     </div>
                     <ul className="text-[12px] text-[color:var(--color-wx-ink)] space-y-0.5">
-                        {declaracion.advertencias.map((a, i) => <li key={i}>· {a}</li>)}
+                        {declaracion.advertencias.map((a, i) => (
+                            <li key={i}>
+                                <span className="font-medium">{etiquetasCampos[a.campo] ?? a.campo}</span>
+                                {a.mensaje && <> — {a.mensaje}</>}
+                            </li>
+                        ))}
                     </ul>
                 </div>
             )}
