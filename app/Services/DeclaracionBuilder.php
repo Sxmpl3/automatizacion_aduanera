@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Declaracion;
 use App\Models\Expediente;
+use App\Services\Schema\DeclaracionTransitoSchema;
 
 class DeclaracionBuilder
 {
@@ -28,19 +29,21 @@ class DeclaracionBuilder
                 'content' => <<<'SYS'
                 Eres el motor de consolidación de Wixia para declaraciones de tránsito NCTS (T1/T2/T2F/TIR).
                 Recibes los datos ya extraídos de todos los documentos del expediente (facturas, CMR, B/L, certificados, ICS2 o incluso una declaración T1/T2 ya emitida).
-                Tu trabajo es fusionar la información en una ÚNICA declaración de tránsito coherente, resolviendo conflictos y priorizando:
-                - Declaración de tránsito emitida (si viene) → MRN, LRN, tipo_declaracion, aduanas, titular del régimen (=declarante), garantía, precintos.
-                - CMR y B/L → transportista, matrícula, aduanas, medio de transporte.
-                - Factura comercial → expedidor, consignatario, valor, moneda, incoterm, mercancías, códigos HS.
-                - Packing list → pesos, bultos, cantidades.
-                - Certificados → mercancías especiales, país de origen.
+                Cada documento trae su 'datos_extraidos' en la MISMA estructura que debes devolver tú en 'datos': la del impreso oficial
+                "Datos a cumplimentar en declaración de tránsito" (FIGURAS · EXPEDICIÓN · EXPEDICIÓN (2) · GARANTÍAS · Doc. Adjuntados · PARTIDAS).
+                Tu trabajo es fusionar esa información en una ÚNICA declaración coherente, resolviendo conflictos y priorizando por fuente:
+                - Declaración de tránsito emitida (si viene) → mrn, lrn, tipo_declaracion, seguridad, datos_reducidos, aduanas (transporte.aduana_salida/destino), declarante, representante, garantias, transportista.precintos, autorizaciones.
+                - CMR y B/L → transportista, transporte (modo/matrícula vía trans_interior/trans_frontera), aduanas, medios_transporte_partida/frontera.
+                - Factura comercial → exportador, consignatario, referencias, partidas (valor_estadistico, moneda, descripcion).
+                - Packing list → partidas.peso_bruto/neto, partidas.bultos.
+                - Certificados → documentos_adicionales, partidas.pos_estadistica, país de origen dentro de observaciones si no hay campo dedicado.
 
                 REGLAS DE MAPEO ESTRICTAS:
-                · 'titular_regimen' (holder of the transit procedure) del documento fuente → 'declarante' (nombre y EORI) en la declaración final.
-                · 'garantia_referencia' de un T1/T2 emitido → 'garantia.referencia' (mantén el código GRN si aparece).
-                · 'precintos' → añádelos a 'observaciones' o al campo dedicado si existe.
-                · Si el documento ya trae LRN/MRN, cópialos tal cual, no los generes.
-                · EORI se conserva con formato completo (letras+dígitos, ej. ESB72145238).
+                · No renombres claves: usa exactamente las del esquema (exportador, consignatario, declarante, representante, transporte, transportista, garantias, partidas...).
+                · Si el documento ya trae mrn/lrn, cópialos tal cual, no los generes.
+                · 'declarante' se identifica por NIF (no EORI); no lo confundas con 'exportador'/'consignatario'/'representante', que sí llevan EORI.
+                · Une las partidas de todos los documentos en un único array 'partidas' (una entrada por línea de mercancía/posición estadística), sin duplicar la misma línea si varios documentos la describen.
+                · EORI y NIF se conservan con formato completo (letras+dígitos, ej. ESB72145238).
 
                 NÚMEROS EUROPEOS: en aduanas ES/UE el separador de miles es '.' y el decimal ','.
                 '22.153,00' = 22153.0 · '1.500,50' = 1500.5 · '15.355' (sin coma) suele ser 15355 entero.
@@ -76,10 +79,10 @@ class DeclaracionBuilder
         $datos = $resultado['datos'] ?? [];
         $expediente->update([
             'estado'          => 'revision',
-            'cliente'         => data_get($datos, 'expedidor.nombre') ?: $expediente->cliente,
+            'cliente'         => data_get($datos, 'exportador.nombre') ?: $expediente->cliente,
             'mrn'             => data_get($datos, 'mrn') ?: $expediente->mrn,
-            'aduana_partida'  => data_get($datos, 'aduana_partida') ?: $expediente->aduana_partida,
-            'aduana_destino'  => data_get($datos, 'aduana_destino') ?: $expediente->aduana_destino,
+            'aduana_partida'  => data_get($datos, 'transporte.aduana_salida') ?: $expediente->aduana_partida,
+            'aduana_destino'  => data_get($datos, 'transporte.aduana_destino') ?: $expediente->aduana_destino,
         ]);
 
         return $declaracion;
@@ -87,115 +90,15 @@ class DeclaracionBuilder
 
     protected function schemaDeclaracion(): array
     {
-        $s = ['type' => ['string', 'null']];
-        $n = ['type' => ['number', 'null']];
-
-        $entidad = [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'properties' => [
-                'nombre'    => $s,
-                'direccion' => $s,
-                'ciudad'    => $s,
-                'cp'        => $s,
-                'pais'      => $s,
-                'eori'      => $s,
-            ],
-            'required' => ['nombre','direccion','ciudad','cp','pais','eori'],
-        ];
-
-        $mercancia = [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'properties' => [
-                'partida'      => $n,
-                'descripcion'  => $s,
-                'codigo_hs'    => $s,
-                'cantidad'     => $n,
-                'unidad'       => $s,
-                'peso_bruto_kg'=> $n,
-                'peso_neto_kg' => $n,
-                'valor'        => $n,
-                'moneda'       => $s,
-                'pais_origen'  => $s,
-                'bultos'       => $n,
-                'marcas'       => $s,
-            ],
-            'required' => ['partida','descripcion','codigo_hs','cantidad','unidad','peso_bruto_kg','peso_neto_kg','valor','moneda','pais_origen','bultos','marcas'],
-        ];
-
-        $documentoRef = [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'properties' => [
-                'tipo'      => $s,
-                'referencia'=> $s,
-                'fecha'     => $s,
-            ],
-            'required' => ['tipo','referencia','fecha'],
-        ];
-
         return [
             'type' => 'object',
             'additionalProperties' => false,
             'properties' => [
                 'confianza_global' => ['type' => 'number', 'minimum' => 0, 'maximum' => 100],
                 'advertencias'     => ['type' => 'array', 'items' => ['type' => 'string']],
-                'datos' => [
-                    'type' => 'object',
-                    'additionalProperties' => false,
-                    'properties' => [
-                        'tipo_declaracion'   => ['type' => 'string', 'enum' => ['T1','T2','T2F','TIR','']],
-                        'mrn'                => $s,
-                        'lrn'                => $s,
-                        'aduana_partida'     => $s,
-                        'aduana_destino'     => $s,
-                        'aduana_paso'        => $s,
-                        'expedidor'          => $entidad,
-                        'consignatario'      => $entidad,
-                        'declarante'         => $entidad,
-                        'transporte' => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'properties' => [
-                                'modo'          => $s,
-                                'identificacion'=> $s,
-                                'nacionalidad'  => $s,
-                                'contenedores'  => ['type' => 'array', 'items' => ['type' => 'string']],
-                            ],
-                            'required' => ['modo','identificacion','nacionalidad','contenedores'],
-                        ],
-                        'garantia' => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'properties' => [
-                                'tipo'      => $s,
-                                'referencia'=> $s,
-                                'importe'   => $n,
-                            ],
-                            'required' => ['tipo','referencia','importe'],
-                        ],
-                        'moneda'          => $s,
-                        'valor_total'     => $n,
-                        'peso_bruto_total'=> $n,
-                        'bultos_totales'  => $n,
-                        'incoterm'        => $s,
-                        'lugar_carga'     => $s,
-                        'lugar_descarga'  => $s,
-                        'itinerario'      => ['type' => 'array', 'items' => ['type' => 'string']],
-                        'mercancias'      => ['type' => 'array', 'items' => $mercancia],
-                        'documentos'      => ['type' => 'array', 'items' => $documentoRef],
-                        'observaciones'   => $s,
-                    ],
-                    'required' => [
-                        'tipo_declaracion','mrn','lrn','aduana_partida','aduana_destino','aduana_paso',
-                        'expedidor','consignatario','declarante','transporte','garantia',
-                        'moneda','valor_total','peso_bruto_total','bultos_totales','incoterm',
-                        'lugar_carga','lugar_descarga','itinerario','mercancias','documentos','observaciones',
-                    ],
-                ],
+                'datos'            => DeclaracionTransitoSchema::datos(),
             ],
-            'required' => ['confianza_global','advertencias','datos'],
+            'required' => ['confianza_global', 'advertencias', 'datos'],
         ];
     }
 }

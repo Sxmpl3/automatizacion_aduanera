@@ -1,6 +1,6 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import TransitoShell from '@/layouts/transito/shell';
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 type EstadoExp = 'borrador' | 'analizando' | 'revision' | 'validado';
 
@@ -415,101 +415,151 @@ function DeclaracionEditor({
                 </div>
             )}
 
-            <Bloque titulo="Datos generales">
+            <Bloque titulo="Declaración">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Field label="Tipo" value={datos?.tipo_declaracion} onChange={v => set('tipo_declaracion', v)} disabled={validado} />
-                    <Field label="MRN"  value={datos?.mrn}              onChange={v => set('mrn', v)} disabled={validado} />
-                    <Field label="LRN"  value={datos?.lrn}              onChange={v => set('lrn', v)} disabled={validado} />
-                    <Field label="Aduana partida" value={datos?.aduana_partida} onChange={v => set('aduana_partida', v)} disabled={validado} />
-                    <Field label="Aduana destino" value={datos?.aduana_destino} onChange={v => set('aduana_destino', v)} disabled={validado} />
-                    <Field label="Aduana de paso" value={datos?.aduana_paso}    onChange={v => set('aduana_paso', v)} disabled={validado} />
-                    <Field label="Incoterm"       value={datos?.incoterm}       onChange={v => set('incoterm', v)} disabled={validado} />
-                    <Field label="Moneda"         value={datos?.moneda}         onChange={v => set('moneda', v)} disabled={validado} />
-                    <Field label="Valor total"    value={datos?.valor_total}    onChange={v => set('valor_total', v)} disabled={validado} />
+                    <Field label="Tipo"            value={datos?.tipo_declaracion} onChange={v => set('tipo_declaracion', v)} disabled={validado} />
+                    <Field label="Seguridad"       value={datos?.seguridad}        onChange={v => set('seguridad', v)} disabled={validado} />
+                    <Field label="Datos Reducidos" value={datos?.datos_reducidos}  onChange={v => set('datos_reducidos', v)} disabled={validado} />
+                    <Field label="MRN" value={datos?.mrn} onChange={v => set('mrn', v)} disabled={validado} />
+                    <Field label="LRN" value={datos?.lrn} onChange={v => set('lrn', v)} disabled={validado} />
                 </div>
-            </Bloque>
-
-            <Bloque titulo="Expedidor">
-                <Entidad prefix="expedidor" datos={datos} set={set} disabled={validado} />
             </Bloque>
 
             <Bloque titulo="Consignatario">
-                <Entidad prefix="consignatario" datos={datos} set={set} disabled={validado} />
+                <EntidadCompleta prefix="consignatario" datos={datos} set={set} disabled={validado} />
+            </Bloque>
+
+            <Bloque titulo="Representante">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field label="EORI"        value={datos?.representante?.eori}            onChange={v => set('representante.eori', v)} disabled={validado} />
+                    <Field label="Car. Repres" value={datos?.representante?.caracter_repres}  onChange={v => set('representante.caracter_repres', v)} disabled={validado} />
+                </div>
             </Bloque>
 
             <Bloque titulo="Declarante">
-                <Entidad prefix="declarante" datos={datos} set={set} disabled={validado} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field label="NIF"      value={datos?.declarante?.nif}      onChange={v => set('declarante.nif', v)} disabled={validado} />
+                    <Field label="Nombre"   value={datos?.declarante?.nombre}   onChange={v => set('declarante.nombre', v)} disabled={validado} />
+                    <Field label="Teléfono" value={datos?.declarante?.telefono} onChange={v => set('declarante.telefono', v)} disabled={validado} />
+                    <Field label="Email"    value={datos?.declarante?.email}    onChange={v => set('declarante.email', v)} disabled={validado} full />
+                </div>
+            </Bloque>
+
+            <Bloque titulo="Exportador">
+                <EntidadCompleta prefix="exportador" datos={datos} set={set} disabled={validado} />
+            </Bloque>
+
+            <Bloque titulo="Referencias">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field label="UCR"        value={datos?.referencias?.ucr}         onChange={v => set('referencias.ucr', v)} disabled={validado} />
+                    <Field label="Interna"    value={datos?.referencias?.interna}     onChange={v => set('referencias.interna', v)} disabled={validado} />
+                    <Field label="Facturar a" value={datos?.referencias?.facturar_a}  onChange={v => set('referencias.facturar_a', v)} disabled={validado} />
+                </div>
             </Bloque>
 
             <Bloque titulo="Transporte">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Field label="Peso Bruto"      value={datos?.transporte?.peso_bruto}     onChange={v => set('transporte.peso_bruto', v)} disabled={validado} />
+                    <Field label="Nº Partidas"     value={datos?.transporte?.num_partidas}   onChange={v => set('transporte.num_partidas', v)} disabled={validado} />
+                    <Field label="País Despacho"   value={datos?.transporte?.pais_despacho}  onChange={v => set('transporte.pais_despacho', v)} disabled={validado} />
+                    <Field label="País Destino"    value={datos?.transporte?.pais_destino}   onChange={v => set('transporte.pais_destino', v)} disabled={validado} />
+                    <Field label="Aduana Salida"   value={datos?.transporte?.aduana_salida}  onChange={v => set('transporte.aduana_salida', v)} disabled={validado} />
+                    <Field label="Aduana Destino"  value={datos?.transporte?.aduana_destino} onChange={v => set('transporte.aduana_destino', v)} disabled={validado} />
+                    <Field label="Trans Interior"  value={datos?.transporte?.trans_interior} onChange={v => set('transporte.trans_interior', v)} disabled={validado} />
+                    <Field label="Trans. Frontera" value={datos?.transporte?.trans_frontera} onChange={v => set('transporte.trans_frontera', v)} disabled={validado} />
+                </div>
+            </Bloque>
+
+            <Bloque titulo="Transportista">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Field label="Modo"           value={datos?.transporte?.modo}           onChange={v => set('transporte.modo', v)} disabled={validado} />
-                    <Field label="Identificación" value={datos?.transporte?.identificacion} onChange={v => set('transporte.identificacion', v)} disabled={validado} />
-                    <Field label="Nacionalidad"   value={datos?.transporte?.nacionalidad}   onChange={v => set('transporte.nacionalidad', v)} disabled={validado} />
+                    <Field label="Contened."  value={datos?.transportista?.contenedores} onChange={v => set('transportista.contenedores', v)} disabled={validado} />
+                    <Field label="Precintos"  value={datos?.transportista?.precintos}    onChange={v => set('transportista.precintos', v)} disabled={validado} />
                 </div>
             </Bloque>
 
-            <Bloque titulo="Garantía">
+            <Bloque titulo="Ubicación origen mercancías">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Field label="Tipo"       value={datos?.garantia?.tipo}      onChange={v => set('garantia.tipo', v)} disabled={validado} />
-                    <Field label="Referencia" value={datos?.garantia?.referencia} onChange={v => set('garantia.referencia', v)} disabled={validado} />
-                    <Field label="Importe"    value={datos?.garantia?.importe}   onChange={v => set('garantia.importe', v)} disabled={validado} />
+                    <Field label="Identif." value={datos?.ubicacion_origen_mercancias?.identificacion}
+                           onChange={v => set('ubicacion_origen_mercancias.identificacion', v)} disabled={validado} />
                 </div>
             </Bloque>
 
-            <Bloque titulo={`Mercancías · ${Array.isArray(datos?.mercancias) ? datos.mercancias.length : 0} partida(s)`}>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-[12px]">
-                        <thead>
-                            <tr className="text-left text-[11px] text-[color:var(--color-wx-muted)] border-b border-[color:var(--color-wx-inkline)]">
-                                <th className="py-2 pr-3 font-normal">Nº</th>
-                                <th className="py-2 pr-3 font-normal">Descripción</th>
-                                <th className="py-2 pr-3 font-normal">HS</th>
-                                <th className="py-2 pr-3 font-normal">Cant.</th>
-                                <th className="py-2 pr-3 font-normal">Peso bruto</th>
-                                <th className="py-2 pr-3 font-normal">Valor</th>
-                                <th className="py-2 pr-3 font-normal">Origen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {(datos?.mercancias ?? []).map((m: any, i: number) => (
-                                <tr key={i} className="border-b border-[color:var(--color-wx-inkline)]/60">
-                                    <td className="py-2 pr-3 tabular-nums text-[color:var(--color-wx-muted)]">{m.partida ?? i+1}</td>
-                                    <td className="py-2 pr-3">
-                                        <input className="wx-input py-1.5" value={m.descripcion ?? ''} disabled={validado}
-                                               onChange={(e) => set(`mercancias.${i}.descripcion`, e.target.value)} />
-                                    </td>
-                                    <td className="py-2 pr-3">
-                                        <input className="wx-input py-1.5 tabular-nums" value={m.codigo_hs ?? ''} disabled={validado}
-                                               onChange={(e) => set(`mercancias.${i}.codigo_hs`, e.target.value)} />
-                                    </td>
-                                    <td className="py-2 pr-3 tabular-nums">{m.cantidad ?? '—'} {m.unidad ?? ''}</td>
-                                    <td className="py-2 pr-3 tabular-nums">{m.peso_bruto_kg ?? '—'} kg</td>
-                                    <td className="py-2 pr-3 tabular-nums">{m.valor ?? '—'} {m.moneda ?? ''}</td>
-                                    <td className="py-2 pr-3">{m.pais_origen ?? '—'}</td>
-                                </tr>
-                            ))}
-                            {(!datos?.mercancias || datos.mercancias.length === 0) && (
-                                <tr><td colSpan={7} className="py-4 text-center text-[color:var(--color-wx-muted)]">Sin mercancías detectadas.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
+            <Bloque titulo="Lugar Carga">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field label="Código UN" value={datos?.lugar_carga?.codigo_un}
+                           onChange={v => set('lugar_carga.codigo_un', v)} disabled={validado} />
                 </div>
             </Bloque>
 
-            <Bloque titulo="Documentación asociada">
-                <ul className="text-[12px] space-y-1">
-                    {(datos?.documentos ?? []).map((d: any, i: number) => (
-                        <li key={i} className="flex items-center gap-3">
-                            <span className="wx-chip"><span className="dot" />{d.tipo}</span>
-                            <span className="tabular-nums">{d.referencia}</span>
-                            {d.fecha && <span className="text-[color:var(--color-wx-muted)]">· {d.fecha}</span>}
-                        </li>
-                    ))}
-                    {(!datos?.documentos || datos.documentos.length === 0) && (
-                        <li className="text-[color:var(--color-wx-muted)]">Sin documentación asociada.</li>
-                    )}
-                </ul>
+            <Bloque titulo="Autorizaciones">
+                <ListaObjetos
+                    items={datos?.autorizaciones ?? []}
+                    campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'numero', label: 'Nº Autorización' }]}
+                    onChange={(arr) => set('autorizaciones', arr)}
+                    disabled={validado}
+                />
+            </Bloque>
+
+            <Bloque titulo="Países de paso">
+                <ListaTexto
+                    items={datos?.paises_paso ?? []}
+                    onChange={(arr) => set('paises_paso', arr)}
+                    disabled={validado}
+                    placeholder="Código de país"
+                />
+            </Bloque>
+
+            <Bloque titulo="Medios de Transporte a la Partida">
+                <ListaObjetos
+                    items={datos?.medios_transporte_partida ?? []}
+                    campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'documento', label: 'Documento' }, { key: 'pais', label: 'País' }]}
+                    onChange={(arr) => set('medios_transporte_partida', arr)}
+                    disabled={validado}
+                />
+            </Bloque>
+
+            <Bloque titulo="Medios de Transporte Frontera">
+                <ListaObjetos
+                    items={datos?.medios_transporte_frontera ?? []}
+                    campos={[{ key: 'aduana', label: 'Aduana' }, { key: 'tipo', label: 'Tipo' }, { key: 'documento', label: 'Documento' }, { key: 'pais', label: 'País' }]}
+                    onChange={(arr) => set('medios_transporte_frontera', arr)}
+                    disabled={validado}
+                />
+            </Bloque>
+
+            <Bloque titulo="Garantías">
+                <ListaObjetos
+                    items={datos?.garantias ?? []}
+                    campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'garantia', label: 'Garantía' }, { key: 'importe', label: 'Importe' }]}
+                    onChange={(arr) => set('garantias', arr)}
+                    disabled={validado}
+                />
+            </Bloque>
+
+            <Bloque titulo="Documentos Transporte">
+                <ListaObjetos
+                    items={datos?.documentos_transporte ?? []}
+                    campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'documento', label: 'Documento' }]}
+                    onChange={(arr) => set('documentos_transporte', arr)}
+                    disabled={validado}
+                />
+            </Bloque>
+
+            <Bloque titulo="Documentos Adicionales">
+                <ListaObjetos
+                    items={datos?.documentos_adicionales ?? []}
+                    campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'documento', label: 'Documento' }]}
+                    onChange={(arr) => set('documentos_adicionales', arr)}
+                    disabled={validado}
+                />
+            </Bloque>
+
+            <Bloque titulo={`Partidas · ${Array.isArray(datos?.partidas) ? datos.partidas.length : 0}`}>
+                <PartidasEditor datos={datos} set={set} disabled={validado} />
+            </Bloque>
+
+            <Bloque titulo="Observaciones">
+                <Field label="Observaciones" value={datos?.observaciones} onChange={v => set('observaciones', v)} disabled={validado} full />
             </Bloque>
 
             <div className="flex items-center gap-3 pt-4 border-t border-[color:var(--color-wx-inkline)]">
@@ -534,16 +584,212 @@ function DeclaracionEditor({
     );
 }
 
-function Entidad({ prefix, datos, set, disabled }: { prefix: string; datos: any; set: (p: string, v: any) => void; disabled: boolean; }) {
+function EntidadCompleta({ prefix, datos, set, disabled }: { prefix: string; datos: any; set: (p: string, v: any) => void; disabled: boolean; }) {
     const d = datos?.[prefix] ?? {};
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Field label="Nombre"    value={d.nombre}    onChange={v => set(`${prefix}.nombre`, v)}    disabled={disabled} />
+            <Field label="Código"    value={d.codigo}    onChange={v => set(`${prefix}.codigo`, v)}    disabled={disabled} />
             <Field label="EORI"      value={d.eori}      onChange={v => set(`${prefix}.eori`, v)}      disabled={disabled} />
-            <Field label="País"      value={d.pais}      onChange={v => set(`${prefix}.pais`, v)}      disabled={disabled} />
-            <Field label="Dirección" value={d.direccion} onChange={v => set(`${prefix}.direccion`, v)} disabled={disabled} full />
+            <Field label="Domicilio" value={d.domicilio} onChange={v => set(`${prefix}.domicilio`, v)} disabled={disabled} full />
             <Field label="Ciudad"    value={d.ciudad}    onChange={v => set(`${prefix}.ciudad`, v)}    disabled={disabled} />
-            <Field label="Código postal" value={d.cp}    onChange={v => set(`${prefix}.cp`, v)}        disabled={disabled} />
+            <Field label="CP"        value={d.cp}        onChange={v => set(`${prefix}.cp`, v)}        disabled={disabled} />
+            <Field label="País"      value={d.pais}      onChange={v => set(`${prefix}.pais`, v)}      disabled={disabled} />
+        </div>
+    );
+}
+
+/* -------------------------------------------------------------------- */
+/* Editores genéricos de listas (Autorizaciones, Garantías, Partidas…)  */
+/* -------------------------------------------------------------------- */
+
+function ListaObjetos({
+    items, campos, onChange, disabled,
+}: {
+    items: Record<string, any>[];
+    campos: { key: string; label: string }[];
+    onChange: (items: Record<string, any>[]) => void;
+    disabled: boolean;
+}) {
+    const actualizar = (i: number, key: string, valor: string) => {
+        onChange(items.map((it, idx) => (idx === i ? { ...it, [key]: valor } : it)));
+    };
+    const eliminar = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+    const anadir = () => onChange([...items, Object.fromEntries(campos.map(c => [c.key, '']))]);
+
+    return (
+        <div className="space-y-3">
+            {items.length === 0 && (
+                <p className="text-[12px] text-[color:var(--color-wx-muted)]">Sin datos.</p>
+            )}
+            {items.map((item, i) => (
+                <div key={i} className="flex flex-wrap items-end gap-2">
+                    {campos.map(c => (
+                        <div key={c.key} className="flex-1 min-w-[120px]">
+                            <label className="wx-label">{c.label}</label>
+                            <input
+                                className="wx-input"
+                                value={item[c.key] ?? ''}
+                                disabled={disabled}
+                                onChange={(e) => actualizar(i, c.key, e.target.value)}
+                            />
+                        </div>
+                    ))}
+                    {!disabled && (
+                        <button
+                            type="button"
+                            onClick={() => eliminar(i)}
+                            className="text-[11px] text-[color:var(--color-wx-muted)] hover:text-[color:var(--color-wx-error)] pb-2 shrink-0"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+            ))}
+            {!disabled && (
+                <button type="button" onClick={anadir} className="wx-btn wx-btn-ghost text-[12px]">+ Añadir</button>
+            )}
+        </div>
+    );
+}
+
+function ListaTexto({
+    items, onChange, disabled, placeholder,
+}: {
+    items: string[];
+    onChange: (items: string[]) => void;
+    disabled: boolean;
+    placeholder?: string;
+}) {
+    const actualizar = (i: number, valor: string) => onChange(items.map((v, idx) => (idx === i ? valor : v)));
+    const eliminar = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+    const anadir = () => onChange([...items, '']);
+
+    return (
+        <div className="space-y-2">
+            {items.length === 0 && (
+                <p className="text-[12px] text-[color:var(--color-wx-muted)]">Sin datos.</p>
+            )}
+            {items.map((v, i) => (
+                <div key={i} className="flex items-center gap-2">
+                    <input
+                        className="wx-input"
+                        value={v}
+                        disabled={disabled}
+                        placeholder={placeholder}
+                        onChange={(e) => actualizar(i, e.target.value)}
+                    />
+                    {!disabled && (
+                        <button
+                            type="button"
+                            onClick={() => eliminar(i)}
+                            className="text-[11px] text-[color:var(--color-wx-muted)] hover:text-[color:var(--color-wx-error)]"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+            ))}
+            {!disabled && (
+                <button type="button" onClick={anadir} className="wx-btn wx-btn-ghost text-[12px]">+ Añadir</button>
+            )}
+        </div>
+    );
+}
+
+/* -------------------------------------------------------------------- */
+/* PARTIDAS: mercancía + desglose de bultos + importes + documentos     */
+/* -------------------------------------------------------------------- */
+
+const PARTIDA_VACIA = {
+    pos_estadistica: '', pais_destino: '', peso_bruto: '', neto: '', unidad_suplementaria: '',
+    factura_cod: '', factura_num: '', descripcion: '',
+    bultos: [] as any[],
+    valor_estadistico: '', moneda: '', cambio: '',
+    documentos_precedentes: [] as any[],
+    documentos_apoyo: [] as any[],
+};
+
+function PartidasEditor({ datos, set, disabled }: { datos: any; set: (p: string, v: any) => void; disabled: boolean; }) {
+    const partidas: any[] = datos?.partidas ?? [];
+
+    const actualizarPartida = (i: number, cambios: Record<string, any>) => {
+        set('partidas', partidas.map((p, idx) => (idx === i ? { ...p, ...cambios } : p)));
+    };
+    const eliminarPartida = (i: number) => set('partidas', partidas.filter((_, idx) => idx !== i));
+    const anadirPartida = () => set('partidas', [...partidas, { ...PARTIDA_VACIA }]);
+
+    return (
+        <div className="space-y-5">
+            {partidas.length === 0 && (
+                <p className="text-[12px] text-[color:var(--color-wx-muted)]">Sin partidas detectadas.</p>
+            )}
+            {partidas.map((p, i) => (
+                <div key={i} className="border border-[color:var(--color-wx-inkline)] p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="text-[12px] font-medium">Partida {i + 1}</div>
+                        {!disabled && (
+                            <button
+                                type="button"
+                                onClick={() => eliminarPartida(i)}
+                                className="text-[11px] text-[color:var(--color-wx-muted)] hover:text-[color:var(--color-wx-error)]"
+                            >
+                                Eliminar partida
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <Field label="Pos. Estadística" value={p.pos_estadistica} onChange={v => actualizarPartida(i, { pos_estadistica: v })} disabled={disabled} />
+                        <Field label="País Destino"     value={p.pais_destino}    onChange={v => actualizarPartida(i, { pais_destino: v })} disabled={disabled} />
+                        <Field label="Peso Bruto"       value={p.peso_bruto}      onChange={v => actualizarPartida(i, { peso_bruto: v })} disabled={disabled} />
+                        <Field label="Neto"             value={p.neto}            onChange={v => actualizarPartida(i, { neto: v })} disabled={disabled} />
+                        <Field label="Und. Suplement."  value={p.unidad_suplementaria} onChange={v => actualizarPartida(i, { unidad_suplementaria: v })} disabled={disabled} />
+                        <Field label="Factura – Cod"    value={p.factura_cod}     onChange={v => actualizarPartida(i, { factura_cod: v })} disabled={disabled} />
+                        <Field label="Factura – Num"    value={p.factura_num}     onChange={v => actualizarPartida(i, { factura_num: v })} disabled={disabled} />
+                        <Field label="Descripción"      value={p.descripcion}     onChange={v => actualizarPartida(i, { descripcion: v })} disabled={disabled} full />
+                    </div>
+
+                    <div>
+                        <div className="wx-label mb-1">Desglose de Bultos</div>
+                        <ListaObjetos
+                            items={p.bultos ?? []}
+                            campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'bultos', label: 'Bultos' }, { key: 'marcas', label: 'Marcas' }]}
+                            onChange={(arr) => actualizarPartida(i, { bultos: arr })}
+                            disabled={disabled}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Field label="Valor Estadístico" value={p.valor_estadistico} onChange={v => actualizarPartida(i, { valor_estadistico: v })} disabled={disabled} />
+                        <Field label="Moneda"            value={p.moneda}            onChange={v => actualizarPartida(i, { moneda: v })} disabled={disabled} />
+                        <Field label="Cambio"            value={p.cambio}            onChange={v => actualizarPartida(i, { cambio: v })} disabled={disabled} />
+                    </div>
+
+                    <div>
+                        <div className="wx-label mb-1">Documentos Precedentes</div>
+                        <ListaObjetos
+                            items={p.documentos_precedentes ?? []}
+                            campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'documento', label: 'Documento' }, { key: 'partida', label: 'Partida' }]}
+                            onChange={(arr) => actualizarPartida(i, { documentos_precedentes: arr })}
+                            disabled={disabled}
+                        />
+                    </div>
+
+                    <div>
+                        <div className="wx-label mb-1">Documentos Apoyo</div>
+                        <ListaObjetos
+                            items={p.documentos_apoyo ?? []}
+                            campos={[{ key: 'tipo', label: 'Tipo' }, { key: 'documento', label: 'Documento' }, { key: 'linea', label: 'Línea' }]}
+                            onChange={(arr) => actualizarPartida(i, { documentos_apoyo: arr })}
+                            disabled={disabled}
+                        />
+                    </div>
+                </div>
+            ))}
+            {!disabled && (
+                <button type="button" onClick={anadirPartida} className="wx-btn wx-btn-ghost text-[12px]">+ Añadir partida</button>
+            )}
         </div>
     );
 }

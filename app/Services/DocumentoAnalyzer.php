@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Documento;
+use App\Services\Schema\DeclaracionTransitoSchema;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -27,6 +28,15 @@ class DocumentoAnalyzer
                 Tu misión es clasificar el documento recibido y extraer con precisión los campos relevantes para preparar una declaración de tránsito NCTS.
                 Trabaja siempre en español. Devuelve valores tal como aparecen en el documento (no traduzcas nombres de empresas o direcciones).
                 Si un campo no está presente, deja la cadena vacía o el array vacío — nunca inventes datos.
+
+                El campo 'datos' sigue EXACTAMENTE la estructura del impreso oficial "Datos a cumplimentar en declaración de tránsito"
+                (secciones FIGURAS · EXPEDICIÓN · EXPEDICIÓN (2) · GARANTÍAS · Doc. Adjuntados · PARTIDAS). No renombres ni inventes
+                claves fuera de ese esquema. Distingue bien las figuras, que en un documento comercial suelen confundirse:
+                · 'exportador' = quien expide/vende la mercancía (Nombre, Código, Domicilio, Ciudad, CP, País, EORI).
+                · 'consignatario' = quien la recibe (mismas columnas que exportador).
+                · 'declarante' = quien presenta la declaración ante aduana; se identifica por NIF (no EORI), Nombre, Teléfono, Email.
+                · 'representante' = si el declarante actúa como representante de otro (EORI + 'caracter_repres', el código 1/2/3 del carácter de representación).
+                No mezcles el NIF del declarante con el EORI del exportador/consignatario/representante: son campos distintos.
                 SYS,
             ],
             [
@@ -136,7 +146,19 @@ class DocumentoAnalyzer
         $encabezado .= "1. Determina el TIPO del documento entre: factura_comercial, cmr, conocimiento_embarque, certificado_fitosanitario, certificado_conformidad, ics2, packing_list, otro. Una \"Declaración de tránsito emitida\" (T1/T2 con MRN) clasifícala como 'otro' con tipo real en observaciones.\n";
         $encabezado .= "2. Estima tu confianza (0-100). Fíjate también en sellos, firmas, casillas marcadas y anotaciones manuscritas.\n";
         $encabezado .= "3. Redacta un resumen breve (máx. 240 caracteres) en español.\n";
-        $encabezado .= "4. Extrae los CAMPOS relevantes para una declaración de tránsito NCTS y devuélvelos en 'datos' con estas claves cuando existan: expedidor{nombre,direccion,eori,pais}, consignatario{nombre,direccion,eori,pais}, transportista{nombre,matricula,pais}, medio_transporte, referencia_documento, mrn, lrn, tipo_declaracion (T1/T2/T2F/TIR), titular_regimen{nombre,eori}, garantia_referencia, precintos, fecha_emision, aduana_partida, aduana_destino, aduana_paso, valor_total, moneda, incoterm, peso_bruto_kg, peso_neto_kg, bultos, mercancias[]{descripcion,codigo_hs,cantidad,unidad,valor,peso_kg,pais_origen}, observaciones.\n\n";
+        $encabezado .= "4. Extrae los CAMPOS relevantes para una declaración de tránsito NCTS y devuélvelos en 'datos', siguiendo EXACTAMENTE la estructura del impreso oficial \"Datos a cumplimentar en declaración de tránsito\":\n";
+        $encabezado .= "   · Declaración: tipo_declaracion (T1/T2/T2F/TIR), seguridad, datos_reducidos, mrn, lrn (mrn/lrn solo si el documento ES una declaración de tránsito ya emitida, no aparecen en facturas/CMR).\n";
+        $encabezado .= "   · exportador{nombre,codigo,domicilio,ciudad,cp,pais,eori} y consignatario{nombre,codigo,domicilio,ciudad,cp,pais,eori}.\n";
+        $encabezado .= "   · representante{eori,caracter_repres} y declarante{nif,nombre,telefono,email} (NIF, no EORI).\n";
+        $encabezado .= "   · referencias{ucr,interna,facturar_a}.\n";
+        $encabezado .= "   · transporte{peso_bruto,num_partidas,pais_despacho,pais_destino,aduana_salida,aduana_destino,trans_interior,trans_frontera}.\n";
+        $encabezado .= "   · transportista{contenedores,precintos}, ubicacion_origen_mercancias{identificacion}, lugar_carga{codigo_un}.\n";
+        $encabezado .= "   · autorizaciones[]{tipo,numero} (p.ej. tipo C523), paises_paso[] (códigos de país de tránsito).\n";
+        $encabezado .= "   · medios_transporte_partida[]{tipo,documento,pais}, medios_transporte_frontera[]{aduana,tipo,documento,pais}.\n";
+        $encabezado .= "   · garantias[]{tipo,garantia,importe} (importe puede ser un número o texto como \"Automatico\").\n";
+        $encabezado .= "   · documentos_transporte[]{tipo,documento} (p.ej. N730, N705) y documentos_adicionales[]{tipo,documento} (p.ej. Y024, Y025).\n";
+        $encabezado .= "   · partidas[]{pos_estadistica,pais_destino,peso_bruto,neto,unidad_suplementaria,factura_cod,factura_num,descripcion,bultos[]{tipo,bultos,marcas},valor_estadistico,moneda,cambio,documentos_precedentes[]{tipo,documento,partida},documentos_apoyo[]{tipo,documento,linea}} — una partida por línea de mercancía/posición estadística.\n";
+        $encabezado .= "   · observaciones.\n\n";
         $encabezado .= "REGLAS CRÍTICAS DE NÚMEROS:\n";
         $encabezado .= "· En documentos aduaneros europeos el separador de miles suele ser '.' y el decimal ','. Ejemplo: '22.153,00' = 22153.00 (veintidós mil ciento cincuenta y tres), NO 22,153.\n";
         $encabezado .= "· '1.234,56' → 1234.56 · '15.355' (sin coma) suele ser 15355 unidades enteras (kg, cajas) → devuelve 15355, no 15.355.\n";
@@ -171,36 +193,6 @@ class DocumentoAnalyzer
 
     protected function schemaDocumento(): array
     {
-        $stringVacio = ['type' => ['string', 'null']];
-        $numeroVacio = ['type' => ['number', 'null']];
-
-        $parteEntidad = [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'properties' => [
-                'nombre'    => $stringVacio,
-                'direccion' => $stringVacio,
-                'eori'      => $stringVacio,
-                'pais'      => $stringVacio,
-            ],
-            'required' => ['nombre','direccion','eori','pais'],
-        ];
-
-        $mercancia = [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'properties' => [
-                'descripcion' => $stringVacio,
-                'codigo_hs'   => $stringVacio,
-                'cantidad'    => $numeroVacio,
-                'unidad'      => $stringVacio,
-                'valor'       => $numeroVacio,
-                'peso_kg'     => $numeroVacio,
-                'pais_origen' => $stringVacio,
-            ],
-            'required' => ['descripcion','codigo_hs','cantidad','unidad','valor','peso_kg','pais_origen'],
-        ];
-
         return [
             'type' => 'object',
             'additionalProperties' => false,
@@ -208,61 +200,9 @@ class DocumentoAnalyzer
                 'tipo'      => ['type' => 'string', 'enum' => array_keys(\App\Models\Documento::TIPOS)],
                 'confianza' => ['type' => 'number', 'minimum' => 0, 'maximum' => 100],
                 'resumen'   => ['type' => 'string'],
-                'datos'     => [
-                    'type' => 'object',
-                    'additionalProperties' => false,
-                    'properties' => [
-                        'expedidor'           => $parteEntidad,
-                        'consignatario'       => $parteEntidad,
-                        'transportista'       => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'properties' => [
-                                'nombre'    => $stringVacio,
-                                'matricula' => $stringVacio,
-                                'pais'      => $stringVacio,
-                            ],
-                            'required' => ['nombre','matricula','pais'],
-                        ],
-                        'medio_transporte'    => $stringVacio,
-                        'referencia_documento'=> $stringVacio,
-                        'mrn'                 => $stringVacio,
-                        'lrn'                 => $stringVacio,
-                        'tipo_declaracion'    => $stringVacio,
-                        'titular_regimen'     => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'properties' => [
-                                'nombre' => $stringVacio,
-                                'eori'   => $stringVacio,
-                            ],
-                            'required' => ['nombre','eori'],
-                        ],
-                        'garantia_referencia' => $stringVacio,
-                        'precintos'           => $stringVacio,
-                        'fecha_emision'       => $stringVacio,
-                        'aduana_partida'      => $stringVacio,
-                        'aduana_destino'      => $stringVacio,
-                        'aduana_paso'         => $stringVacio,
-                        'valor_total'         => $numeroVacio,
-                        'moneda'              => $stringVacio,
-                        'incoterm'            => $stringVacio,
-                        'peso_bruto_kg'       => $numeroVacio,
-                        'peso_neto_kg'        => $numeroVacio,
-                        'bultos'              => $numeroVacio,
-                        'mercancias'          => ['type' => 'array', 'items' => $mercancia],
-                        'observaciones'       => $stringVacio,
-                    ],
-                    'required' => [
-                        'expedidor','consignatario','transportista','medio_transporte',
-                        'referencia_documento','mrn','lrn','tipo_declaracion','titular_regimen',
-                        'garantia_referencia','precintos','fecha_emision','aduana_partida',
-                        'aduana_destino','aduana_paso','valor_total','moneda','incoterm',
-                        'peso_bruto_kg','peso_neto_kg','bultos','mercancias','observaciones',
-                    ],
-                ],
+                'datos'     => DeclaracionTransitoSchema::datos(),
             ],
-            'required' => ['tipo','confianza','resumen','datos'],
+            'required' => ['tipo', 'confianza', 'resumen', 'datos'],
         ];
     }
 }
